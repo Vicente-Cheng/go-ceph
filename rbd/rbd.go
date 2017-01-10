@@ -185,7 +185,9 @@ func Create(ioctx *rados.IOContext, name string, size uint64, order int,
 //            const char *p_snapname, rados_ioctx_t c_ioctx,
 //            const char *c_name, uint64_t features, int *c_order,
 //            uint64_t stripe_unit, int stripe_count);
-func (image *Image) Clone(snapname string, c_ioctx *rados.IOContext, c_name string, features uint64, order int) (*Image, error) {
+func (image *Image) Clone(snapname string, c_ioctx *rados.IOContext, c_name string, features uint64, order int,
+	args ...uint64) (*Image, error) {
+	var ret C.int
 	var c_order C.int = C.int(order)
 	var c_p_name *C.char = C.CString(image.name)
 	var c_p_snapname *C.char = C.CString(snapname)
@@ -194,10 +196,22 @@ func (image *Image) Clone(snapname string, c_ioctx *rados.IOContext, c_name stri
 	defer C.free(unsafe.Pointer(c_p_snapname))
 	defer C.free(unsafe.Pointer(c_c_name))
 
-	ret := C.rbd_clone(C.rados_ioctx_t(image.ioctx.Pointer()),
-		c_p_name, c_p_snapname,
-		C.rados_ioctx_t(c_ioctx.Pointer()),
-		c_c_name, C.uint64_t(features), &c_order)
+	switch len(args) {
+	case 2:
+		ret = C.rbd_clone2(C.rados_ioctx_t(image.ioctx.Pointer()),
+			c_p_name, c_p_snapname,
+			C.rados_ioctx_t(c_ioctx.Pointer()),
+			c_c_name, C.uint64_t(features), &c_order,
+			C.uint64_t(args[0]), C.int(args[1]))
+	case 0:
+		ret = C.rbd_clone(C.rados_ioctx_t(image.ioctx.Pointer()),
+			c_p_name, c_p_snapname,
+			C.rados_ioctx_t(c_ioctx.Pointer()),
+			c_c_name, C.uint64_t(features), &c_order)
+	default:
+		return nil, errors.New("Wrong number of argument")
+	}
+
 	if ret < 0 {
 		return nil, RBDError(int(ret))
 	}
@@ -518,30 +532,30 @@ func (image *Image) ListLockers() (tag string, lockers []Locker, err error) {
 		nil, (*C.size_t)(&c_clients_len),
 		nil, (*C.size_t)(&c_cookies_len),
 		nil, (*C.size_t)(&c_addrs_len))
-	
-	// no locker held on rbd image when either c_clients_len, 
-	// c_cookies_len or c_addrs_len is *0*, so just quickly returned 
-	if int(c_clients_len) == 0 || int(c_cookies_len) == 0 || 
-		int(c_addrs_len) ==0 {
+
+	// no locker held on rbd image when either c_clients_len,
+	// c_cookies_len or c_addrs_len is *0*, so just quickly returned
+	if int(c_clients_len) == 0 || int(c_cookies_len) == 0 ||
+		int(c_addrs_len) == 0 {
 		lockers = make([]Locker, 0)
-		return "", lockers, nil 
+		return "", lockers, nil
 	}
 
 	tag_buf := make([]byte, c_tag_len)
 	clients_buf := make([]byte, c_clients_len)
 	cookies_buf := make([]byte, c_cookies_len)
 	addrs_buf := make([]byte, c_addrs_len)
-	
+
 	c_locker_cnt = C.rbd_list_lockers(image.image, &c_exclusive,
 		(*C.char)(unsafe.Pointer(&tag_buf[0])), (*C.size_t)(&c_tag_len),
 		(*C.char)(unsafe.Pointer(&clients_buf[0])), (*C.size_t)(&c_clients_len),
 		(*C.char)(unsafe.Pointer(&cookies_buf[0])), (*C.size_t)(&c_cookies_len),
 		(*C.char)(unsafe.Pointer(&addrs_buf[0])), (*C.size_t)(&c_addrs_len))
-	
-	// rbd_list_lockers returns negative value for errors 
+
+	// rbd_list_lockers returns negative value for errors
 	// and *0* means no locker held on rbd image.
-	// but *0* is unexpected here because first rbd_list_lockers already 
-	// dealt with no locker case 
+	// but *0* is unexpected here because first rbd_list_lockers already
+	// dealt with no locker case
 	if int(c_locker_cnt) <= 0 {
 		return "", nil, RBDError(int(c_locker_cnt))
 	}
