@@ -10,7 +10,6 @@ branches:
 matrix:
   include:
     - env: CEPH_RELEASE=jewel
-    - env: CEPH_RELEASE=kraken
 
 before_install:
   - sudo apt-get update
