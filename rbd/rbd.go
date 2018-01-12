@@ -11,7 +11,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/ceph/Vicente-Cheng/rados"
+	"github.com/Vicente-Cheng/go-ceph/rados"
 	"io"
 	"unsafe"
 )
