@@ -19,6 +19,7 @@ before_install:
   - ceph status
 
 script:
+  - go get github.com/stretchr/testify
   - go list ./...
   - go test -v $(go list ./... | grep -v cephfs)
   - go fmt ./...
