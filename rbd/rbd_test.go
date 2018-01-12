@@ -11,6 +11,10 @@ import (
 	"testing"
 )
 
+//Rdb feature
+var RbdFeatureLayering = uint64(1 << 0)
+var RbdFeatureStripingV2 = uint64(1 << 1)
+
 func GetUUID() string {
 	out, _ := exec.Command("uuidgen").Output()
 	return string(out[:36])
